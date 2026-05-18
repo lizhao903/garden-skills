@@ -7,15 +7,15 @@
 #   bash scripts/scaffold.sh --list-themes
 #
 # 例子：
-#   bash <path-to-web-video-presentation>/scripts/scaffold.sh ./presentation
-#   bash <path-to-web-video-presentation>/scripts/scaffold.sh ./talk --theme=paper-press
-#   bash <path-to-web-video-presentation>/scripts/scaffold.sh --list-themes
+#   bash .cursor/skills/web-video-presentation/scripts/scaffold.sh ./presentation
+#   bash .cursor/skills/web-video-presentation/scripts/scaffold.sh ./talk --theme=paper-press
+#   bash .cursor/skills/web-video-presentation/scripts/scaffold.sh --list-themes
 #
 # 跑完后，看 SKILL.md "Phase 2.4 实现单章" + references/CHAPTER-CRAFT.md
 # 了解每章怎么写。卡壳时翻 references/EXAMPLES/ 找完整章节 anchor。
 #
 # 之后切换主题，覆盖一个文件即可：
-#   cp <path-to-web-video-presentation>/themes/<id>/tokens.css \
+#   cp .cursor/skills/web-video-presentation/themes/<id>/tokens.css \
 #      <project>/src/styles/tokens.css
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -69,7 +69,7 @@ THEME_DIR="$THEMES_DIR/$THEME"
 THEME_TOKENS="$THEME_DIR/tokens.css"
 
 if [[ ! -d "$THEME_DIR" || ! -f "$THEME_TOKENS" ]]; then
-  echo "✗ 找不到主题 '${THEME}'。可用主题：" >&2
+  echo "✗ 找不到主题 '$THEME'。可用主题：" >&2
   echo >&2
   for dir in "$THEMES_DIR"/*/; do
     [[ -d "$dir" ]] || continue
@@ -79,7 +79,7 @@ if [[ ! -d "$THEME_DIR" || ! -f "$THEME_TOKENS" ]]; then
 fi
 
 if [[ -d "$TARGET" && -n "$(ls -A "$TARGET" 2>/dev/null || true)" ]]; then
-  echo "✗ 目标目录 '${TARGET}' 已存在且非空，已中止。" >&2
+  echo "✗ 目标目录 '$TARGET' 已存在且非空，已中止。" >&2
   exit 1
 fi
 
@@ -128,10 +128,11 @@ cp "$TEMPLATES/src/styles/base.css"         src/styles/base.css
 cp "$TEMPLATES/src/styles/animations.css"   src/styles/animations.css
 cp "$TEMPLATES/src/styles/fonts.css"        src/styles/fonts.css
 
-cp "$TEMPLATES/src/hooks/useStageScale.ts"   src/hooks/useStageScale.ts
-cp "$TEMPLATES/src/hooks/useStepper.ts"      src/hooks/useStepper.ts
-cp "$TEMPLATES/src/hooks/useAudioPlayer.ts"  src/hooks/useAudioPlayer.ts
-cp "$TEMPLATES/src/hooks/useAutoMode.ts"     src/hooks/useAutoMode.ts
+cp "$TEMPLATES/src/hooks/useStageScale.ts"     src/hooks/useStageScale.ts
+cp "$TEMPLATES/src/hooks/useStepper.ts"        src/hooks/useStepper.ts
+cp "$TEMPLATES/src/hooks/useAudioPlayer.ts"    src/hooks/useAudioPlayer.ts
+cp "$TEMPLATES/src/hooks/useAutoMode.ts"       src/hooks/useAutoMode.ts
+cp "$TEMPLATES/src/hooks/useRenderTimings.ts"  src/hooks/useRenderTimings.ts
 
 cp "$TEMPLATES/src/components/Stage.tsx"          src/components/Stage.tsx
 cp "$TEMPLATES/src/components/MaskReveal.tsx"     src/components/MaskReveal.tsx

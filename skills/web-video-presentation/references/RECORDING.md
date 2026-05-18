@@ -1,13 +1,96 @@
 # 录制与后期合成
 
-网页做完 + 音频合成完之后，**Auto 模式 + 屏幕录制可以一镜到底**——
-不需要手动点击推进 step、也不需要后期对音频。
+三条路径，按从全自动到全手动排：
 
-如果你不打音频，仍可走"手动点击 + 后期配"的传统路径（在文档末尾）。
+| 路径 | 何时用 | 输出 |
+|---|---|---|
+| **A · 程序化渲染**（`scripts/render-video.mjs`） | 已合成音频；想要无人工 mp4 | 直接 mp4 |
+| **B · Auto 模式一镜到底屏幕录制** | 已合成音频；想要一次手动操作搞定 | 录屏软件的产物 |
+| **C · 手动点击 + 后期配音** | 没合成音频 | 录屏 + 剪辑 |
 
 ---
 
-## 推荐流程：Auto 模式一镜到底
+## 路径 A · 程序化渲染（推荐）
+
+`scripts/render-video.mjs` 用 Playwright headless + ffmpeg 把 auto 模式
+**无声**地跑完一遍，然后把每段 mp3 按 step 切换时间点对齐到录像上。
+不依赖系统屏幕录制、不需要 BlackHole/Loopback，不会被通知/光标污染。
+
+### 前置
+
+- 章节代码做完，每章都有 `narrations.ts`
+- 跑过 `npm run extract-narrations` + `npm run synthesize-audio`，
+  `public/audio/<id>/<step>.mp3` 全部就位
+- 安装好 Playwright + Chromium：
+
+```bash
+cd <skill>/scripts    # 或者你 workspace 里复制的那份
+npm install
+npx playwright install chromium
+```
+
+### 运行
+
+```bash
+# 1) 起 dev server（任何方式都行，端口默认 5174）
+npm run dev   # 在 presentation/ 目录里
+
+# 2) 在 presentation 父目录跑：
+node <skill>/scripts/render-video.mjs <project-dir-or-slug>
+
+# 输出：<project>/video-out/<slug>.mp4 + timings.json
+```
+
+或者用 workspace 包装（见 `workspace/README.md`）：
+
+```bash
+./start.sh <slug>
+./render-video.sh <slug>            # 录制 + mux
+./render-video.sh <slug> --remux    # 只重 mux（调 ffmpeg 参数用）
+./stop.sh
+```
+
+### 工作原理
+
+```
+Playwright headless Chromium 1920×1080
+  + --mute-audio（防止任何系统声音）
+  + recordVideo 1920×1080 → webm
+  ↓
+浏览器在 auto 模式播：触发 audio.ended 推进，但听不到声音
+浏览器吐 console marks：__STEP_START / __AUTO_DONE + window.__autoDone
+  ↓
+Playwright 抓 console，记录每段 mp3 该出现的时刻
+context.close 落 webm
+  ↓
+ffmpeg 合成：
+  -i raw.webm                                  # 录像
+  -i 1.mp3 -i 2.mp3 ... -i N.mp3               # 每段音频
+  -filter_complex
+    "[1:a]adelay=0|0[a1];                      # 用 adelay 显式延迟到时间点
+     [2:a]adelay=4320|4320[a2]; ...
+     [a1][a2]...amix=inputs=N:normalize=0[aout]"
+  -c:v libx264 -c:a aac out.mp4
+```
+
+> **关键坑**：用 `-itsoffset` 给输入加偏移，amix 滤镜**不会**尊重它。
+> 必须用 `[i:a]adelay=<ms>|<ms>` 在 filter 里显式延迟，再喂给 amix。
+>
+> **另一坑**：用 `page.keyboard.press(" ")` 启动 auto 会被 `useStepper`
+> 的 Space 推进键吃掉，cursor 直接跳到 step 1。改用 `page.click(".auto-gate")`。
+
+### 调试
+
+- `<project>/video-out/timings.json` 记录每个 step 的实测开始时间，
+  漂移异常时回看这个
+- 录像中间产物 `<project>/video-out/raw/*.webm` 保留，便于 `--remux`
+- 一段 mp3 缺失会被警告且跳过，最终视频该处静音
+
+---
+
+## 路径 B · Auto 模式一镜到底（屏幕录制）
+
+适合你想亲眼看一遍效果再录的场景。
 
 ### 前置
 
@@ -54,7 +137,7 @@
 
 ---
 
-## 备用流程：没合成音频时手动录屏
+## 路径 C · 没合成音频时手动录屏
 
 如果你跳过了音频合成（`Checkpoint Audio` 选了"不合成"），按老方法：
 

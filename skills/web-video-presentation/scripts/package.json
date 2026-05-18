@@ -1,0 +1,9 @@
+{
+  "name": "web-video-scripts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

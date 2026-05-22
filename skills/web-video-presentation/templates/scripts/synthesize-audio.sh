@@ -4,38 +4,66 @@
 # (mmx) to produce one mp3 per segment under public/audio/<chapter>/<N>.mp3.
 #
 # Prereq:
-#   1. npm run extract-narrations   (writes audio-segments.json)
-#   2. mmx-cli installed and authenticated (`mmx auth status`)
+#   1. mmx-cli installed and authenticated (`mmx auth status`)
 #
 # Behavior:
+#   • Runs extract-narrations first (writes audio-segments.json).
+#     Pass --no-extract to skip and reuse the existing file.
 #   • Serial calls (TTS APIs commonly rate-limit parallel requests).
 #   • Skips segments whose mp3 already exists (so you can rerun safely
 #     after a partial failure). Pass --force to re-synthesize all.
 #   • Prints progress per segment with elapsed time.
 #
+# Default voice: Chinese (Mandarin)_Sincere_Adult — pairs with the
+# voice-sincere-adult.mp3 reference used by synthesize-audio-indextts.sh
+# so both engines sound like the same speaker. Override via --voice=<id>.
+#
 # Usage:
-#   bash scripts/synthesize-audio.sh                # incremental
-#   bash scripts/synthesize-audio.sh --force        # overwrite all
+#   bash scripts/synthesize-audio.sh                # extract + incremental
+#   bash scripts/synthesize-audio.sh --force        # extract + overwrite all
+#   bash scripts/synthesize-audio.sh --no-extract   # reuse existing segments.json
 #   bash scripts/synthesize-audio.sh --voice=<id>   # override voice
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Prefer $PWD (npm run sets it to the project's package.json dir) so the
+# script works when `scripts/` is a symlink into shared/presentation/.
+# Fall back to the script-relative path if $PWD isn't a presentation dir.
+if [[ -f "$PWD/audio-segments.json" || -d "$PWD/src/chapters" ]]; then
+  ROOT="$PWD"
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 SEGMENTS="$ROOT/audio-segments.json"
 OUT_DIR="$ROOT/public/audio"
 
+DEFAULT_VOICE="Chinese (Mandarin)_Sincere_Adult"
 FORCE=false
-VOICE_ARG=""
+NO_EXTRACT=false
+VOICE=""
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
-    --voice=*) VOICE_ARG="--voice ${arg#--voice=}" ;;
+    --no-extract) NO_EXTRACT=true ;;
+    --voice=*) VOICE="${arg#--voice=}" ;;
     *) echo "✗ unknown arg: $arg" >&2; exit 1 ;;
   esac
 done
+VOICE="${VOICE:-$DEFAULT_VOICE}"
+VOICE_ARGS=(--voice "$VOICE")
+
+if [[ "$NO_EXTRACT" != true ]]; then
+  if [[ ! -d "$ROOT/src/chapters" ]]; then
+    echo "✗ $ROOT/src/chapters not found — run this from a presentation dir, or pass --no-extract" >&2
+    exit 1
+  fi
+  echo "→ extracting narrations …"
+  ( cd "$ROOT" && npx --yes tsx scripts/extract-narrations.ts ) || {
+    echo "✗ extract-narrations failed" >&2; exit 1; }
+fi
 
 if [[ ! -f "$SEGMENTS" ]]; then
-  echo "✗ $SEGMENTS not found. Run: npm run extract-narrations" >&2
+  echo "✗ $SEGMENTS not found. Run without --no-extract, or: npm run extract-narrations" >&2
   exit 1
 fi
 if ! command -v mmx >/dev/null; then
@@ -77,7 +105,7 @@ while IFS= read -r row; do
 
   mkdir -p "$(dirname "$out")"
   start=$(date +%s)
-  if mmx speech synthesize $VOICE_ARG --text "$text" --out "$out" \
+  if mmx speech synthesize "${VOICE_ARGS[@]}" --text "$text" --out "$out" \
        >/dev/null 2>&1; then
     elapsed=$(( $(date +%s) - start ))
     synthesized=$((synthesized + 1))
